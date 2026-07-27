@@ -113,12 +113,68 @@ print('Sold shape after removing invalid numeric rows:', sold.shape)
 print('Listings shape after removing invalid numeric rows:', listings.shape)
 
 # ============================================================
-# Save the Week 4 checkpoint datasets
-# Date consistency flags and geographic data quality checks are Week 5 work and
-# pick up from these files.
+# Step 6 - Date consistency checks
+# Expected order: ListingContractDate <= PurchaseContractDate <= CloseDate.
+# Violations are flagged (not removed) so downstream analysis can decide whether to
+# exclude them.
 # ============================================================
-sold.to_csv('sold_week4_cleaned.csv', index=False)
-listings.to_csv('listings_week4_cleaned.csv', index=False)
+def add_date_flags(df):
+    df['listing_after_close_flag'] = (
+        df['ListingContractDate'].notna() & df['CloseDate'].notna() &
+        (df['ListingContractDate'] > df['CloseDate'])
+    )
+    df['purchase_after_close_flag'] = (
+        df['PurchaseContractDate'].notna() & df['CloseDate'].notna() &
+        (df['PurchaseContractDate'] > df['CloseDate'])
+    )
+    df['negative_timeline_flag'] = (
+        df['ListingContractDate'].notna() & df['PurchaseContractDate'].notna() &
+        (df['ListingContractDate'] > df['PurchaseContractDate'])
+    )
+    return df
+
+sold = add_date_flags(sold)
+listings = add_date_flags(listings)
+
+for label, df in [('SOLD', sold), ('LISTINGS', listings)]:
+    print(f'{label} date consistency flag counts:')
+    print(f'  listing_after_close_flag:  {df["listing_after_close_flag"].sum():,}')
+    print(f'  purchase_after_close_flag: {df["purchase_after_close_flag"].sum():,}')
+    print(f'  negative_timeline_flag:    {df["negative_timeline_flag"].sum():,}')
+
+# ============================================================
+# Step 7 - Geographic data checks
+# ============================================================
+# Approximate California bounding box
+CA_LAT_RANGE = (32.0, 42.5)
+CA_LON_RANGE = (-125.0, -114.0)
+
+def add_geo_flags(df):
+    df['missing_coords_flag'] = df['Latitude'].isnull() | df['Longitude'].isnull()
+    df['zero_coords_flag'] = (df['Latitude'] == 0) | (df['Longitude'] == 0)
+    df['longitude_sign_flag'] = df['Longitude'].notna() & (df['Longitude'] > 0)
+    df['implausible_coords_flag'] = (
+        df['Latitude'].notna() & df['Longitude'].notna() & ~df['zero_coords_flag'] &
+        (~df['Latitude'].between(*CA_LAT_RANGE) | ~df['Longitude'].between(*CA_LON_RANGE))
+    )
+    return df
+
+sold = add_geo_flags(sold)
+listings = add_geo_flags(listings)
+
+for label, df in [('SOLD', sold), ('LISTINGS', listings)]:
+    print(f'{label} geographic data quality summary:')
+    print(f'  missing_coords_flag:      {df["missing_coords_flag"].sum():,}')
+    print(f'  zero_coords_flag:         {df["zero_coords_flag"].sum():,}')
+    print(f'  longitude_sign_flag:      {df["longitude_sign_flag"].sum():,}')
+    print(f'  implausible_coords_flag:  {df["implausible_coords_flag"].sum():,}')
+    print(f'  StateOrProvince != CA:    {(df["StateOrProvince"] != "CA").sum():,}')
+
+# ============================================================
+# Save cleaned, analysis-ready datasets
+# ============================================================
+sold.to_csv('sold_cleaned.csv', index=False)
+listings.to_csv('listings_cleaned.csv', index=False)
 
 print('=== Before / after row counts ===')
 print(f'SOLD:      {sold_rows_start:,} -> {len(sold):,}')
@@ -127,5 +183,5 @@ print('=== Date field dtype confirmation (SOLD) ===')
 print(sold[date_fields].dtypes)
 print('=== Numeric field dtype confirmation (SOLD) ===')
 print(sold[numeric_fields].dtypes)
-print('Saved sold_week4_cleaned.csv:', sold.shape)
-print('Saved listings_week4_cleaned.csv:', listings.shape)
+print('Saved sold_cleaned.csv:', sold.shape)
+print('Saved listings_cleaned.csv:', listings.shape)

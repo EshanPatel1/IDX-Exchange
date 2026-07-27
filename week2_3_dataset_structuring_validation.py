@@ -164,7 +164,7 @@ print('Listings CloseDate null %:', round(listings["CloseDate"].isnull().mean() 
 print('Listings MlsStatus breakdown:')
 print(listings["MlsStatus"].value_counts(dropna=False))
 
-# --- Suggested Intern Questions ---
+
 
 # 1. Residential vs. other property type share (computed above from raw pre-filter data)
 print(f'1. Residential share -- Sold: {sold_res_share:.2%}, Listings: {listing_res_share:.2%}')
